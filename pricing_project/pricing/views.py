@@ -3,46 +3,73 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import PricingConfig
 from datetime import datetime
+import logging
+from rest_framework import generics
+from .serializers import PricingConfigSerializer
+
+logger = logging.getLogger(__name__)
 
 class PriceCalculationView(APIView):
+    def get(self, request):
+        return self.calculate_price(request.query_params)
+
     def post(self, request):
-        # Input: distance_km, ride_minutes, waiting_minutes, date
-        data = request.data
-        distance = float(data.get('distance_km', 0))
-        ride_time = int(data.get('ride_minutes', 0))
-        waiting_time = int(data.get('waiting_minutes', 0))
-        date = data.get('date')  # e.g. "2025-06-15"
+        return self.calculate_price(request.data)
 
-        day = datetime.strptime(date, "%Y-%m-%d").strftime("%a")  # Mon, Tue, etc.
+    def calculate_price(self, data):
+        required_fields = ['distance_km', 'ride_minutes', 'waiting_minutes', 'date']
+        missing = [field for field in required_fields if not data.get(field)]
 
-        # Pick active config for the given day
-        config = PricingConfig.objects.filter(is_active=True, days_active__contains=[day]).first()
-        if not config:
-            return Response({"error": "No active config found for this day"}, status=404)
+        if missing:
+            return Response({"error": f"Missing required fields: {', '.join(missing)}"}, status=400)
 
-        # Distance Calculation
-        if distance <= config.base_distance:
-            distance_cost = config.base_price
-        else:
-            additional_km = distance - config.base_distance
-            distance_cost = config.base_price + (additional_km * float(config.additional_price))
+        try:
+            logger.info(f"📥 Received Data: {data}")
 
-        # Time Multiplier Calculation
-        multiplier = 1.0
-        for tm in config.time_multipliers.all():
-            if tm.min_minutes <= ride_time <= tm.max_minutes:
-                multiplier = tm.multiplier
-                break
+            distance = float(data.get('distance_km'))
+            ride_time = int(data.get('ride_minutes'))
+            waiting_time = int(data.get('waiting_minutes'))
+            date = data.get('date')
 
-        time_cost = distance_cost * multiplier
+            logger.info(f"📆 Date received: {date}")
+            day = datetime.strptime(date, "%Y-%m-%d").strftime("%a")  # 'Sun', 'Mon', etc.
+            logger.info(f"🗓 Day: {day}")
 
-        # Waiting Charge
-        wc_obj = config.waiting_charges.first()
-        waiting_cost = 0
-        if wc_obj and waiting_time > wc_obj.free_minutes:
-            extra_wait = waiting_time - wc_obj.free_minutes
-            waiting_cost = extra_wait * float(wc_obj.charge_per_min)
+            config = PricingConfig.objects.filter(is_active=True, days_active__icontains=day).first()
+            if not config:
+                return Response({"error": f"No active config found for {day}"}, status=404)
 
-        final_price = round(time_cost + waiting_cost, 2)
+            # Step 1: Distance-based cost
+            if distance <= config.base_distance:
+                distance_cost = config.base_price
+            else:
+                extra_km = distance - config.base_distance
+                distance_cost = config.base_price + (extra_km * float(config.additional_price_per_km))
 
-        return Response({"final_price": final_price})
+            # Step 2: Apply time multiplier
+            multiplier = 1.0
+            for tm in config.time_multipliers.all():
+                if tm.min_minutes <= ride_time <= tm.max_minutes:
+                    multiplier = tm.multiplier
+                    break
+
+            time_cost = distance_cost * multiplier
+
+            # Step 3: Apply waiting time charge
+            waiting_cost = 0
+            wc = config.waiting_charges.first()
+            if wc and waiting_time > wc.free_minutes:
+                extra_wait = waiting_time - wc.free_minutes
+                waiting_cost = extra_wait * float(wc.charge_per_min)
+
+            # Final Price
+            final_price = round(time_cost + waiting_cost, 2)
+
+            return Response({"final_price": final_price})
+
+        except Exception as e:
+            logger.exception("Error calculating price")
+            return Response({"error": str(e)}, status=400)
+class PricingConfigCreateView(generics.CreateAPIView):
+    queryset = PricingConfig.objects.all()
+    serializer_class = PricingConfigSerializer

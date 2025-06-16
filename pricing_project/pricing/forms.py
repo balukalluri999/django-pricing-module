@@ -33,3 +33,8 @@ class PricingConfigForm(forms.ModelForm):
         if value < 0:
             raise forms.ValidationError("Base price cannot be negative.")
         return value
+    def clean_days_active(self):
+        days = self.cleaned_data['days_active']
+        if not days:
+            raise forms.ValidationError("At least one day must be selected.")
+        return days
