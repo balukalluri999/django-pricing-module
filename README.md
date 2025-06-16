@@ -44,8 +44,8 @@ Setup Instructions:
    source env/bin/activate  (Linux/macOS)
    env\Scripts\activate     (Windows)
 
-3. Install dependencies:
-   pip install -r requirements.txt
+3. Install dependencies
+   
 
 4. Setup PostgreSQL and update `settings.py`:
    - DB name: pricingdb
@@ -64,6 +64,75 @@ Setup Instructions:
 
 8. Access Django Admin:
    http://127.0.0.1:8000/admin/
+
+## 📡 API Endpoints
+
+This module provides RESTful APIs to manage pricing configurations and calculate ride fares.
+
+---
+
+### 🔧 Pricing Configuration Endpoints
+
+| Method | Endpoint                  | Description                          |
+|--------|---------------------------|--------------------------------------|
+| GET    | `http://127.0.0.1:8000/api/config/create/`           | List all pricing configurations      |
+| POST   | `http://127.0.0.1:8000/api/config/create/`           | Create a new pricing configuration   |
+| GET    | `/api/configs/<id>/`      | Retrieve a specific configuration    |
+| PUT    | `/api/configs/<id>/`      | Update a pricing configuration       |
+| DELETE | `/api/configs/<id>/`      | Delete a pricing configuration       |
+
+---
+
+### 💰 Price Calculation Endpoint
+
+| Method | Endpoint                 | Description                           |
+|--------|--------------------------|---------------------------------------|
+| POST   | ` http://127.0.0.1:8000/api/calculate-price/`  | Calculate ride price dynamically      |
+
+---
+
+## 🧪 Sample API Payloads
+
+---
+
+### ✅ Create a Pricing Configuration
+
+**POST** `http://127.0.0.1:8000/api/config/create/`
+
+```json
+{
+    "name": "Standard Mon",
+    "is_active": true,
+    "base_price": 100,
+    "base_distance": 5,
+    "additional_price_per_km": 12.5,
+    "days_active": [
+        "Mon"
+    ]
+}
+
+### 💰 Price Calculation Endpoint
+
+**POST** `/api/calculate-price/`
+
+This endpoint calculates the total fare of a ride based on:
+
+- Distance traveled (in kilometers)
+- Duration (in minutes)
+- waiting minutes
+- date (in `HH:MM:SS` format)
+
+---
+
+#### ✅ Sample Request Payload
+
+```json
+{
+  "distance_km": 10,
+  "ride_minutes": 25,
+  "waiting_minutes": 10,
+  "date": "2025-06-16"
+}
 
 Author:
 -------
