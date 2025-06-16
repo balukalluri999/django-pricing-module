@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 class PricingConfig(models.Model):
     name = models.CharField(max_length=100)
@@ -29,3 +30,12 @@ class WaitingCharge(models.Model):
 
     def __str__(self):
         return f"{self.charge_per_min}/min after {self.free_minutes} min"
+
+class ConfigChangeLog(models.Model):
+    config = models.ForeignKey(PricingConfig, on_delete=models.CASCADE)
+    action = models.CharField(max_length=20, choices=[('create', 'Create'), ('update', 'Update'), ('delete', 'Delete')])
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.config.name} - {self.action} by {self.performed_by}"
